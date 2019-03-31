@@ -1,0 +1,581 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <stdio.h>
+#define F_CPU 16000000UL
+#include <avr/pgmspace.h>
+#include <util/delay.h>
+#include <math.h>
+#include "USART0.h"
+int f;
+char name_loc;
+char name_name;
+int bandsel;
+int a;
+int check;
+int freq1;
+int freq2;
+int indexn;
+int high1;
+int high2;
+int low1;
+int low2;
+int transbitnameconvert[5];
+int transbitlocationconvert[5];
+int i;
+int identificationlocation = 0;
+int identificationname = 0;
+//#define MXN 10
+int transbitlocation[5];
+int transbitname[5];
+int transbit_unreference[15];
+
+char name_trans;
+//int freq1 = 1000;
+//int freq2 = 500;
+int transmission_bytelocation;
+int transmission_bytename;
+int bits[7];
+int c = 0, wumbo = 0;
+volatile uint16_t This, last, elapsedtick, over, pulse_detect;
+
+FILE *fio_0 = &usart0_Stream;
+
+void init();
+void pause();
+void transmitt(short data);
+
+ISR (TIMER1_OVF_vect) {
+	over = 1;
+}
+
+ISR (TIMER1_CAPT_vect) {
+	This = ICR1;
+	if (over) {
+		elapsedtick = 65535 - last + This;
+		over = 0;
+	}
+	else elapsedtick = This - last;
+	//if ((elapsedtick > 4100)||(elapsedtick < 3000)) pulse_detect = 1;
+	if ((elapsedtick < 4100)&&(elapsedtick > 3000)) pulse_detect = 1;
+	last = This;
+}
+
+void init() {
+	TCCR1B |= (1<<ICNC1)|(1<<ICES1)|(1<<CS10);
+	TCNT1 = 0;
+	TIMSK1 |= (1<<TOIE1)|(1<<ICIE1);
+}
+
+void pause() {
+	TIMSK1 &= 0;
+}
+
+/****************************************************
+	Starts Timer1
+*****************************************************/
+void start(void){
+	// set compare match register for 400 Hz increments
+	//OCR1A =39999; // = 16000000 / (1 * 400) - 1 (must be <65536)
+	// turn on CTC mode
+	TCCR1B |= (1 << WGM12);
+	// Set CS12, CS11 and CS10 bits for 1 prescaler
+	TCCR1B |= (1 << CS10);
+	// enable timer compare interrupt
+	TIMSK1 |= (1 << OCIE1A);
+	//sei(); // allow interrupts
+	DDRC = 0xFF; // setting PORTC to write
+	PORTC = 0x00; // initializing the state of PORTC to off
+	//freqhz_set();
+	init_uart0(103); // initializing the UART
+	sei(); // enabling interrupts
+}
+
+/****************************************************
+	"Stops" Timer1
+*****************************************************/
+void stop(void){
+
+	TCCR1A = 0; // set entire TCCR1A register to 0
+	TCCR1B = 0; // same for TCCR1B
+	TCNT1  = 0; // initialize counter value to 0
+	// set compare match register for 400 Hz increments
+	OCR1A = 0;//39998.5; // = 16000000 / (1 * 400) - 1 (must be <65536)
+
+}
+
+	
+
+/****************************************************
+	Definition of Location identification in bits
+	
+	Example:
+	if(transmission_bytelocation == 1){checks the user input
+		//transbitlocation[5]={0,0,0,0,0};
+		//Assignment bit values to array to indication 
+		name or location
+		transbitlocation[1] = 0; bit 1
+		transbitlocation[2] = 0; bit 2
+		transbitlocation[3] = 0; bit 3
+		transbitlocation[4] = 0; bit 4
+		transbitlocation[5] = 0; bit 5
+	
+*****************************************************/
+void transmissiondatalocation(void){
+	//Bora Bora
+	if(transmission_bytelocation == 1){
+		//transbitlocationconvert[5]={0,0,0,0,0};
+		
+	}
+	
+	//Venenazula
+	if(transmission_bytelocation == 2){
+		//transbitlocationconvert[5]={0,0,0,0,1};
+		
+	}
+	//Prussia
+	if(transmission_bytelocation == 3){
+		//transbitlocationconvert[5]=[0,0,0,1,0];
+		
+	}
+	//Nunavut
+	if(transmission_bytelocation == 4){
+	//transbitlocationconvert[5]=[0,0,0,1,1];
+		
+	}
+	
+}
+/****************************************************
+	Definition of name identification in bits
+*****************************************************/
+void transmissiondataname(void){
+	//Alex
+	if(transmission_bytename == 1){
+		//transbitnameconvert[5]={0,0,1,0,0};
+	
+	}
+	//Bill
+	if(transmission_bytename == 2){
+		//transbitnameconvert[5]={0,0,1,0,1};
+		
+	}
+	//Charles
+	if(transmission_bytename == 3){
+		//transbitnameconvert[5]={0,0,1,1,0};
+			
+	}
+	//George
+	if(transmission_bytename == 4){
+		//transbitnameconvert[5]={0,0,1,1,1};
+			
+	}
+	//John
+	if(transmission_bytename == 5){
+		//transbitnameconvert[5]={0,1,0,0,0};
+			
+	}
+	//Lily
+	if(transmission_bytename == 6){
+		//transbitnameconvert[5]={0,1,0,0,1};
+		
+	}
+	//Margot
+	if(transmission_bytename == 7){
+		//transbitnameconvert[5]={0,1,0,1,0};
+			
+	}
+	//Xiao
+	if(transmission_bytename == 8){
+		//transbitnameconvert[5]={0,1,0,1,1};
+			
+	}
+	//Zane
+	if(transmission_bytename == 9){
+		//transbitnameconvert[5]={0,1,1,0,0};
+		
+	}
+	
+}
+
+
+
+#pragma region old
+void transmitt(short data) {
+	pause();
+	
+	int n = data;
+	
+	fprintf_P(fio_0, PSTR("Name and Location received: "));
+	{	
+		fprintf_P(fio_0, PSTR("George "));
+	}
+	if (n == 114) {
+		fprintf_P(fio_0, PSTR("John "));
+	}
+	if (n == 134) {
+		fprintf_P(fio_0, PSTR("Lily "));
+	}
+	if (n == 154) {
+		fprintf_P(fio_0, PSTR("Margot "));
+	}
+	if (n == 174) {
+		fprintf_P(fio_0, PSTR("Xiao "));
+	}
+	if (n == 194) {
+		fprintf_P(fio_0, PSTR("Zane "));
+	}
+	if (n == 215) {
+		fprintf_P(fio_0, PSTR("Bora Bora.\r\n"));
+	}
+	if (n == 225) {
+		fprintf_P(fio_0, PSTR("Russia.\r\n"));
+	}
+	if (n == 235) {
+		fprintf_P(fio_0, PSTR("Venezuela.\r\n"));
+	}
+	if (n == 245) {
+		fprintf_P(fio_0, PSTR("Nunavut.\r\n"));
+	}
+	else fprintf_P(fio_0, PSTR("Null, %d\r\n"), data);
+	init();
+}
+#pragma endregion old
+
+int main(void){
+	sei();
+	DDRC |= 0x01;
+	DDRB &= 0x00;
+	init_uart0(103);
+	fprintf_P(fio_0, PSTR("Connected! The time is %s on %s \r\n"), __TIME__, __DATE__);
+	init();
+	
+	short n = 0;
+	
+	stop();
+	pause();
+	fprintf_P(fio_0, PSTR("selection transmission bands \n\r")); // Asking for the user for a name
+	fprintf_P(fio_0, PSTR("1 - 1kHz and 2kHz \n\r")); // Asking for the user for a name
+	fprintf_P(fio_0, PSTR("2 - 2kHz and 3kHz \n\r")); // Asking for the user for a name
+	fprintf_P(fio_0, PSTR("3 - 4kHz and 5kHz \n\r")); // Asking for the user for a name
+	fscanf_P(fio_0, PSTR("%d"), &bandsel);	// scanning in user input
+	if(bandsel == 1){
+		low1 =15900 ;//1kHz and 2kHz
+		low2 = 16100;
+		high1 = 7900;
+		high2 = 8100;
+	}
+	if(bandsel == 2){
+		low1 = 7900;//2kHz and 3kH
+		low2 = 8100;
+		high1 = 5300;
+		high2 = 5400;
+	}
+	if(bandsel == 3){
+		low1 = 3900 ;//4kHz and 5kH
+		low2 = 4000;
+		high1 = 3100;
+		high2 = 3300;
+	}
+	
+	stop();
+	//bandselfunction();
+	DDRC |= 0x01;
+	DDRB &= 0x00;
+	init_uart0(103);
+	fprintf_P(fio_0, PSTR("Connected! The time is %s on %s \r\n"), __TIME__, __DATE__);
+	init();
+	int cprime = 0;
+	int c =0;
+	//while(1==1){
+		fprintf_P(fio_0, PSTR("Entered the While loop \r\n"));
+		//while(pulse_detect == 0);
+		
+		//_delay_ms(800);
+		_delay_ms(8); // 8 to 800
+		init();
+		while(1==1){
+			
+			if(cprime<3){
+				if((elapsedtick > high1) && (elapsedtick < high2)){//5k
+					transbit_unreference[cprime] = 1;
+					cprime++;
+					fprintf_P(fio_0, PSTR("Detect High Bit \r\n"));
+				}
+				fprintf_P(fio_0, PSTR("Checking \r\n"));
+			} else if(cprime==3){
+				break;
+			}
+		}
+		
+				fprintf_P(fio_0, PSTR("Recieving . . . \r\n"));
+				//c=0;
+		//while(c<=16){
+				
+				//c=0;
+				//16
+					while (c <= 15) {//35000//16
+						fprintf_P(fio_0, PSTR("Elasped tick: %d \r\n"),elapsedtick);
+						
+						if ((elapsedtick > low1) && (elapsedtick < low2)) {//4k
+							
+							transbit_unreference[c] = 0;
+							c++;
+							fprintf_P(fio_0, PSTR("Low == 0 \r\n"));
+						}
+						else if ((elapsedtick > high1) && (elapsedtick < high2)){//5k
+							
+							transbit_unreference[c] = 1;
+							c++;
+							fprintf_P(fio_0, PSTR("High == 1 \r\n"));
+						}else{//bits[7-c] = 1;
+							c++;
+							fprintf_P(fio_0, PSTR("There is AN ERROR PAPA JOHN or IT IS OUT OF RANGE \r\n"));
+						}
+						//_delay_ms(1000);
+						_delay_ms(100); // 10 to 1000
+					}	
+					
+					
+					
+					
+				
+		//	}
+			
+	if (c == 15) {
+		//transmitt(n);
+		n = 0;
+		c = 0;
+		pulse_detect = 0;
+	}
+	
+	pause();
+	fprintf_P(fio_0, PSTR("Done While loop \r\n"));
+	fprintf_P(fio_0, PSTR("Transmission array is\r\n"));
+	
+	for(int cookies = 0; cookies<=15;cookies++){
+		fprintf_P(fio_0, PSTR("%d .   %d ,\r\n"),cookies,transbit_unreference[cookies]);
+		
+	}
+	fprintf_P(fio_0, PSTR("Done While loop #1 \r\n"));
+	
+	int dank = 0;
+	for(int dabonhater = 3;dabonhater<=7;dabonhater++){
+		transbitlocation[dank] = transbit_unreference[dabonhater];
+		fprintf_P(fio_0, PSTR("%d  \r\n"),transbitlocation[dank]);
+		fprintf_P(fio_0, PSTR("%d %d \r\n"),dank,dabonhater);
+		dank ++;
+		//fprintf_P(fio_0, PSTR("%d \r\n"),dank);
+		//fprintf_P(fio_0, PSTR("%d \r\n"),dabonhater);
+	}
+	dank = 0;
+	for(int dabonhater =8; dabonhater<=12;dabonhater++){
+		transbitname[dank] = transbit_unreference[dabonhater];
+		fprintf_P(fio_0, PSTR("%d  \r\n"),transbitname[dank]);
+		fprintf_P(fio_0, PSTR("%d %d \r\n"),dank,dabonhater);
+		//fprintf_P(fio_0, PSTR("%d \r\n"),dabonhater);
+		dank++;
+	}
+	//pause();
+	//stop();
+	//_delay_ms(2000);
+	
+	fprintf_P(fio_0, PSTR("Done reading  into transbits \r\n"));
+	
+	
+	for(int rock = 0; rock<=4;rock++){
+		fprintf_P(fio_0, PSTR("%d ,\r\n"),transbitlocation[rock]);
+		
+	}
+	
+	for(int rock = 0; rock<=4;rock++){
+		fprintf_P(fio_0, PSTR("%d ,\r\n"),transbitname[rock]);
+		
+	}
+	
+	fprintf_P(fio_0, PSTR("Done While loop #2 \r\n"));
+	//int bit0 = 0;
+	int bit1 = 1;
+	int bit2 = 2;
+	int bit3 = 3;
+	int bit4 = 4;
+	
+	
+	for(int cocut = 0; cocut<=4;cocut++){
+		
+	}
+	
+	
+	if(transbitlocation[bit3]=='1'){
+		
+			if(transbitlocation[bit4]=='1'){
+				identificationlocation = 3;
+			}else{
+				identificationlocation = 4;
+			}
+			
+		
+		
+	}else{
+		
+		if(transbitlocation[bit4]=='1'){
+				identificationlocation = 2;
+			}else{
+				identificationlocation = 1;
+		}
+		
+	}
+	fprintf_P(fio_0, PSTR("Location is: %d  \r\n"), identificationlocation);
+	
+	
+	if(transbitname[bit1]=='1'){	
+		
+		if(transbitname[bit2]=='1'){
+			
+			if(transbitname[bit3]=='1'){
+				if(transbitname[bit4]=='1'){
+					identificationname = 99;
+				}
+				if(transbitname[bit4]=='0'){
+					identificationname = 98;
+				}
+			}
+			if(transbitname[bit3]=='0'){
+				if(transbitname[bit4]=='1'){
+					identificationname = 9;
+				}
+				if(transbitname[bit4]=='0'){
+					identificationname = 8;
+				}
+			}
+			
+			
+		}
+		if(transbitname[bit2]=='0'){
+			
+			if(transbitname[bit3]=='1'){
+				if(transbitname[bit4]=='1'){
+					identificationname = 7;
+				}
+				if(transbitname[bit4]=='0'){
+					identificationname = 6;
+				}
+			}
+			if(transbitname[bit3]=='0'){
+				if(transbitname[bit4]=='1'){
+					identificationname = 5;
+				}
+				if(transbitname[bit4]=='0'){
+					identificationname = 4;
+				}
+			}
+			
+		}
+				
+	}
+	
+	
+	
+	
+	if(transbitname[bit1]=='0'){
+			if(transbitname[bit2]=='1'){
+				
+				if(transbitname[bit3]=='1'){
+					if(transbitname[bit4]=='1'){
+						identificationname = 3;
+					}
+					if(transbitname[bit4]=='0'){
+						identificationname = 2;
+					}
+				}
+				if(transbitname[bit3]=='0'){
+					if(transbitname[bit4]=='1'){
+						identificationname = 1;
+					}
+					if(transbitname[bit4]=='0'){
+						identificationname = 9;
+					}
+				}
+				
+				
+			}
+			if(transbitname[bit2]=='0'){
+				
+				if(transbitname[bit3]=='1'){
+					if(transbitname[bit4]=='1'){
+						identificationname = 97;
+					}
+					if(transbitname[bit4]=='0'){
+						identificationname = 96;
+					}
+				}
+				if(transbitname[bit3]=='0'){
+					if(transbitname[bit4]=='1'){
+						identificationname = 95;
+					}
+					if(transbitname[bit4]=='0'){
+						identificationname = 94;
+					}
+				}
+				
+			}
+	}
+	
+	
+		fprintf_P(fio_0, PSTR("Name is: %d  \r\n"), identificationname);
+		
+	if(identificationlocation == 1){
+		fprintf_P(fio_0, PSTR("Bora  \r\n"));
+	}
+	else if(identificationlocation == 2){
+		fprintf_P(fio_0, PSTR("Ven  \r\n"));
+	}
+	else if(identificationlocation == 3){
+		fprintf_P(fio_0, PSTR("Russia  \r\n"));
+	}
+	else if(identificationlocation == 4){
+		fprintf_P(fio_0, PSTR("Nun \r\n"));
+	}
+	
+	if(identificationname == 1){
+		fprintf_P(fio_0, PSTR("Alex  \r\n"));
+	}
+	
+	else if(identificationname == 2){
+		fprintf_P(fio_0, PSTR("Bill  \r\n"));
+	}
+	else if(identificationname == 3){
+		fprintf_P(fio_0, PSTR("Bill  \r\n"));
+	}
+	else if(identificationname == 4){
+		fprintf_P(fio_0, PSTR("Charles  \r\n"));
+	}
+	else if(identificationname == 4){
+		fprintf_P(fio_0, PSTR("George  \r\n"));
+	}
+	else if(identificationname == 5){
+		fprintf_P(fio_0, PSTR("John  \r\n"));
+	}
+	else if(identificationname == 6){
+		fprintf_P(fio_0, PSTR("Lily \r\n"));
+	}
+	else if(identificationname == 7){
+		fprintf_P(fio_0, PSTR("Margot  \r\n"));
+	}
+	else if(identificationname == 8){
+		fprintf_P(fio_0, PSTR("Xiao  \r\n"));
+	}
+	else if(identificationname == 9){
+		fprintf_P(fio_0, PSTR("Zane  \r\n"));
+	}
+	
+	int overcookies =0;
+	while(1){
+	//	if(overcookies==20){
+		//	fprintf_P(fio_0, PSTR("Done \r\n"));
+			//break;
+		//}
+	//overcookies++;
+	}
+	
+
+}
+		
